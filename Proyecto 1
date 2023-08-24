@@ -2,9 +2,13 @@
 #include <ESP32Servo.h>
 #include "driver/ledc.h"
 #include <stdint.h>
+#include <config.h>
 
 //Variable float para registrar la temperatura
 volatile float tempC;
+
+//Se define el canal que va a mandar datos al feed "Temperatura"
+AdafruitIO_Feed *tempCanal = io.feed("Temperatura");
 
 //Pines para cada segemento de los displays 
 #define G 22 
@@ -193,6 +197,23 @@ void setup() {
     //Empieza el monitor serial
     Serial.begin(115200);
 
+    //Espera a que se abra el monitor serial
+    while(! Serial);
+    Serial.print("Connecting to Adafruit IO");
+
+    // connectarse a io.adafruit.com
+    io.connect();
+
+    // Empezar el programa hasta que se logre una conexión exitosa
+    while(io.status() < AIO_CONNECTED) {
+      Serial.print(".");
+      delay(500);
+    }
+
+    //Mostrar que ya está conectado
+    Serial.println();
+    Serial.println(io.statusText());
+
     //PIn del sensor de temperatura
     pinMode(PIN_LM35, INPUT);
 
@@ -221,6 +242,9 @@ void loop() {
 
   ///////////////////Tomar la temperatura cuando se apache el botón////////////////////////////////////////////
   if (digitalRead(pinButton) == LOW){
+
+    //Mantener la conexión con el adafruit
+    io.run();
 
     //Leer el valor de ADC del sensor
     int adcVal = analogRead(PIN_LM35);
@@ -313,6 +337,9 @@ void loop() {
 
     // Escribe el ángulo en el servo para que se mueva a la posición correspondiente
     myservo.write(angle); 
+
+    //Se manda el valor de temperatura al feed en adafruit para poder verlo en tiempo real
+    tempCanal->save(tempC);
     
     delay(300);
     }
