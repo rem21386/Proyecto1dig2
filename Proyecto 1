@@ -6,6 +6,25 @@
 //Variable float para registrar la temperatura
 volatile float tempC;
 
+//Pines para cada segemento de los displays 
+#define G 22 
+#define F 21 
+#define A 16 
+#define B 17
+#define E 25
+#define D 18 
+#define C 5 
+
+//Pines conectados a los transistores de cada display
+#define GND1 12 
+#define GND2 13 
+#define GND3 14
+
+//Primer dígito de temperatura
+volatile int digitD;
+//Segundo dígito 
+volatile int digit;
+
 //Voltaje de referencia para el sensor de temperatura
 #define ADC_VREF_mV    5000.0 // en millivolts
 //Resolución del ADC
@@ -51,6 +70,123 @@ Servo myservo;
 //Configurar la función de pmw
 void configurarPWM(void);
 
+//Funciones para cada dígito que se quiera representar en el display
+void digit0() { 
+  digitalWrite(A, HIGH); 
+  digitalWrite(B, HIGH); 
+  digitalWrite(C, HIGH); 
+  digitalWrite(D, HIGH); 
+  digitalWrite(E, HIGH); 
+  digitalWrite(F, HIGH); 
+  digitalWrite(G, LOW); 
+} 
+
+void digit1() { 
+  digitalWrite(A, LOW); 
+  digitalWrite(B, HIGH); 
+  digitalWrite(C, HIGH); 
+  digitalWrite(D, LOW); 
+  digitalWrite(E, LOW); 
+  digitalWrite(F, LOW); 
+  digitalWrite(G, LOW); 
+} 
+
+void digit2() { 
+  digitalWrite(A, HIGH); 
+  digitalWrite(B, HIGH); 
+  digitalWrite(C, LOW); 
+  digitalWrite(D, HIGH); 
+  digitalWrite(E, HIGH); 
+  digitalWrite(F, LOW); 
+  digitalWrite(G, HIGH); 
+} 
+
+void digit3() { 
+  digitalWrite(A, HIGH); 
+  digitalWrite(B, HIGH); 
+  digitalWrite(C, HIGH); 
+  digitalWrite(D, HIGH); 
+  digitalWrite(E, LOW); 
+  digitalWrite(F, LOW); 
+  digitalWrite(G, HIGH); 
+} 
+
+void digit4() { 
+  digitalWrite(A, LOW); 
+  digitalWrite(B, HIGH); 
+  digitalWrite(C, HIGH); 
+  digitalWrite(D, LOW); 
+  digitalWrite(E, LOW); 
+  digitalWrite(F, HIGH); 
+  digitalWrite(G, HIGH); 
+} 
+
+void digit5() { 
+  digitalWrite(A, HIGH); 
+  digitalWrite(B, LOW); 
+  digitalWrite(C, HIGH); 
+  digitalWrite(D, HIGH); 
+  digitalWrite(E, LOW); 
+  digitalWrite(F, HIGH); 
+  digitalWrite(G, HIGH); 
+} 
+
+void digit6() { 
+  digitalWrite(A, HIGH); 
+  digitalWrite(B, LOW); 
+  digitalWrite(C, HIGH); 
+  digitalWrite(D, HIGH); 
+  digitalWrite(E, HIGH); 
+  digitalWrite(F, HIGH); 
+  digitalWrite(G, HIGH); 
+} 
+
+void digit7() { 
+  digitalWrite(A, HIGH); 
+  digitalWrite(B, HIGH); 
+  digitalWrite(C, HIGH); 
+  digitalWrite(D, LOW); 
+  digitalWrite(E, LOW); 
+  digitalWrite(F, LOW); 
+  digitalWrite(G, LOW); 
+} 
+
+void digit8() { 
+  digitalWrite(A, HIGH); 
+  digitalWrite(B, HIGH); 
+  digitalWrite(C, HIGH); 
+  digitalWrite(D, HIGH); 
+  digitalWrite(E, HIGH); 
+  digitalWrite(F, HIGH); 
+  digitalWrite(G, HIGH); 
+} 
+
+void digit9() { 
+  digitalWrite(A, HIGH); 
+  digitalWrite(B, HIGH); 
+  digitalWrite(C, HIGH); 
+  digitalWrite(D, HIGH); 
+  digitalWrite(E, LOW); 
+  digitalWrite(F, HIGH); 
+  digitalWrite(G, HIGH); 
+}
+
+//Función para llamar a la función indicada para cada dígito dependiendo del valor que se le ingrese.
+void showdigit(int digit) { 
+  switch (digit) { 
+    case 0: digit0(); break; 
+    case 1: digit1(); break; 
+    case 2: digit2(); break; 
+    case 3: digit3(); break; 
+    case 4: digit4(); break; 
+    case 5: digit5(); break; 
+    case 6: digit6(); break; 
+    case 7: digit7(); break; 
+    case 8: digit8(); break; 
+    case 9: digit9(); break; 
+    default: break; 
+  } 
+
 //////////////////////SETUP///////////////////////////
 void setup() {
 
@@ -66,6 +202,19 @@ void setup() {
 
     //Mandar al servo a 0 grados
     myservo.write(angle);
+
+    //Configuración de pines para el display
+    pinMode(A, OUTPUT); 
+    pinMode(B, OUTPUT); 
+    pinMode(C, OUTPUT); 
+    pinMode(D, OUTPUT); 
+    pinMode(E, OUTPUT); 
+    pinMode(F, OUTPUT); 
+    pinMode(G, OUTPUT);  
+
+    pinMode(GND1, OUTPUT); 
+    pinMode(GND2, OUTPUT); 
+    pinMode(GND3, OUTPUT);    
 }
 
 void loop() { 
@@ -166,6 +315,51 @@ void loop() {
     myservo.write(angle); 
     
     delay(300);
+    }
+/////////////DISPLAY///////////////
+  //Número sin decimal del valor de temperatura
+  int wholePart = int(tempC); 
+  //Decimal del valor de temperatura
+  int decimalPart = int((tempC - wholePart) * 10); 
+
+  //Activar el primer display activando su transistor
+  digitalWrite(GND1, HIGH); 
+  digitalWrite(GND2, LOW); 
+  digitalWrite(GND3, LOW);
+  
+  //Se calcula el primer dígito dividiendo el número entero dentro de 10
+  digitD = wholePart / 10; // First digit of wholePart 
+
+  //Se llama a la función showdigit para activar el display según el dígito que se le mandó
+  showdigit(digitD);
+  
+  //Delay muy pequeño para que el cambio sea impercerptible
+  delay(5);
+  
+  //Desactivar el primer display y activar el segundo
+  digitalWrite(GND1, LOW); 
+  digitalWrite(GND2, HIGH); 
+  digitalWrite(GND3, LOW);
+  
+  //Para sacar el segundo dígito sacar el residuo de la temperatura con el valor de 10.
+  digit = wholePart % 10; // Second digit of wholePart 
+
+  //Llamar otra vez a la función para enseñar el digito adecuado en el display.
+  showdigit(digit); 
+  
+  //Mismo delay que antes
+  delay(5);
+
+  //Desactivar el segundo display y activar el tercero
+  digitalWrite(GND1, LOW); 
+  digitalWrite(GND2, LOW); 
+  digitalWrite(GND3, HIGH); 
+
+  //Usar la misma función para desplegar el dígito mandado en el display
+  showdigit(decimalPart);
+
+  //Mismo delay que antes
+  delay(5);
 }
 
 //Función de configuración del servo con pmw
