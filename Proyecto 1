@@ -1,1 +1,51 @@
+#include <Arduino.h>
+#include <stdint.h>
+
+//Variable float para registrar la temperatura
+volatile float tempC;
+
+//Voltaje de referencia para el sensor de temperatura
+#define ADC_VREF_mV    5000.0 // en millivolts
+//Resolución del ADC
+#define ADC_RESOLUTION 4096.0
+//Pin de señal del sensor
+#define PIN_LM35       34 // ESP32 pin GPIO36 (ADC0) connected to LM35
+
+//Pin del botón
+#define pinButton 32
+
+//////////////////////SETUP///////////////////////////
+void setup() {
+
+    //Empieza el monitor serial
+    Serial.begin(115200);
+
+    //PIn del sensor de temperatura
+    pinMode(PIN_LM35, INPUT);
+
+    pinMode(pinButton, INPUT_PULLUP);  // Configura el pin del botón 1 como entrada con resistencia pull-up interna
+}
+
+void loop() { 
+
+  ///////////////////Tomar la temperatura cuando se apache el botón////////////////////////////////////////////
+  if (digitalRead(pinButton) == LOW){
+
+    //Leer el valor de ADC del sensor
+    int adcVal = analogRead(PIN_LM35);
+    //Convertir el valor a voltaje
+    float milliVolt = adcVal * (ADC_VREF_mV / ADC_RESOLUTION);
+    // convertiir el voltaje a temperatura en °C
+    tempC = milliVolt / 10;
+
+    // Imprimir la temperatura en el monitor serial.
+    Serial.print("Temperature: ");
+    Serial.print(tempC);
+    Serial.print(" °C ");
+
+    delay(500);
+    }
+  
+    
+
 
