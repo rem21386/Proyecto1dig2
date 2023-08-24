@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <ESP32Servo.h>
+#include "driver/ledc.h"
 #include <stdint.h>
 
 //Variable float para registrar la temperatura
@@ -11,8 +13,43 @@ volatile float tempC;
 //Pin de señal del sensor
 #define PIN_LM35       34 // ESP32 pin GPIO36 (ADC0) connected to LM35
 
+//Canales de pmw
+#define pwmChannel 0 
+#define ledRChannel 1
+#define ledGChannel 2
+#define ledBChannel 3
+
+//Pin del servo
+#define pinPWM 15
+
+//Frecuencia de los pmw para la primer led
+#define freqPWM 5000 // Frecuencia en Hz
+
+//Resolución de 16 bits
+#define resolution 16
+
+//Pines de los leds
+#define pinLedR 19 //led roja
+#define pinLedG 4 //led amarilla
+#define pinLedB 2 //led verde
+
 //Pin del botón
 #define pinButton 32
+
+//El servo empieza en un ángulo de 0
+volatile int angle = 0;
+
+//Cada led empieza apagada
+volatile int dutycycleR = 0;
+volatile int dutycycleG = 0;
+volatile int dutycycleB = 0;
+
+//Variable del servo
+Servo myservo;
+
+//////////////////////////FUNCIONES///////////////////////////////
+//Configurar la función de pmw
+void configurarPWM(void);
 
 //////////////////////SETUP///////////////////////////
 void setup() {
@@ -23,7 +60,12 @@ void setup() {
     //PIn del sensor de temperatura
     pinMode(PIN_LM35, INPUT);
 
+    configurarPWM();     // Configura el PWM para el servo y las leds
+
     pinMode(pinButton, INPUT_PULLUP);  // Configura el pin del botón 1 como entrada con resistencia pull-up interna
+
+    //Mandar al servo a 0 grados
+    myservo.write(angle);
 }
 
 void loop() { 
@@ -43,8 +85,105 @@ void loop() {
     Serial.print(tempC);
     Serial.print(" °C ");
 
-    delay(500);
+    /////////////Temperatura ->Ángulo ///////////////////////
+    //Si la temperatura es menor a 32 mandar el servo hasta el extremo frío y darle su máximo brillo a la led verde
+    if (tempC <= 32){
+      angle = 180;
+      dutycycleR = 0;
+      dutycycleG = 0;
+      dutycycleB = 2000;
     }
+
+    //Si la temperatura es mayor a 40 mandar al servo al extremo caliente y darle su brillo máximo a la led roja
+    if (tempC >= 40) {
+      angle = 0;
+      dutycycleR = 256;
+      dutycycleG = 0;
+      dutycycleB = 0;
+    }
+
+    //Si la temperatura está entre 32 y 37 ir moviendo el ángulo gradualmente en el primer tercio de su movimiento, entre 180 y 121
+    if (tempC >= 32 && tempC < 37) {
+      angle = map(tempC, 32, 37, 180, 121);
+      dutycycleR = 0;
+      dutycycleG = 0;
+    }
+
+    //Si la temperatura está entre 37.2 y 37.4, la zona media del rango aceptable, mandar al ángulo a su posición más central, 90 grados
+    if (tempC >= 37.2 && tempC <= 37.4) {
+      angle = 90;
+      dutycycleR = 0;
+      dutycycleB = 0;
+    }
+
+    //Si la temperatura está entre 37 y 37.2, el límite inferior del rango aceptable, mandar el ángulo a una posición de 105 grados
+    if (tempC >= 37 && tempC < 37.2) {
+      angle = 105;
+      dutycycleR = 0;
+      dutycycleB = 0;
+    }
+    //Si la temperatura está entre 37.4 y 37.6, el límite superior del rango aceptable, mandar el ángulo a una posición de 75 grados
+    if (tempC > 37.4 && tempC < 37.6) {
+      angle = 75;
+      dutycycleR = 0;
+      dutycycleB = 0;
+    }
+
+    //Si la temperatura se pasa de 37.6 reducir el ángulo gradualmente desde 60 a 0.
+    if (tempC >= 37.6 && tempC <= 40) {
+      angle = map(tempC, 37.6, 40, 60, 0);
+      dutycycleG = 0;
+      dutycycleB = 0;
+    }
+
+    ///////////////Ángulo -> Led////////////////////////////////////
+    //Si el ángulo está entre 0 y 60, significa que la temperatura es mayor a 37.5 por lo que es necesario reducir la iluminación de la led roja a medida que aumenta el ángulo, ya que 0 grados es el extremo caliente.
+    if (angle >= 0 && angle <= 60) {
+      dutycycleR = map(angle, 0, 60, 256, 0);
+    }
+
+    //Si el ángulo está entre 61 y 90 aumentar gradualmente la iluminación de la led amarilla ya que en 90 grados es su punto medio exacto, entonces esta luz tiene que ser más intensa.
+    if (angle >= 61 && angle <= 90) {
+      dutycycleG = map(angle, 61, 90, 0, 2000);
+    }
+
+    //Si el ángulo se pasa de 90 bajar gradualmente la iluminación de la led amarilla para que en 120 se apague otra vez ya que se acaba el rango amarillo.
+    if (angle >= 91 && angle <= 120) {
+      dutycycleG = map(angle, 91, 120, 2000, 0);
+    }
+
+    //Si el ángulo pasa de 120 significa que la temperatura es menor que 37 por lo que se sube la iluminación de la led verde gradualmente a medida que sigue aumentando el ángulo.
+    if (angle >= 121 && angle <= 180) {
+      dutycycleB = map(angle, 121, 180, 0, 2000);
+    }
+
+    //Mandar el valor de dutycycle a cada led para que se prenda su nivel de brillo dependiendo de este valor.
+    ledcWrite(ledRChannel, dutycycleR);
+    ledcWrite(ledGChannel, dutycycleG);
+    ledcWrite(ledBChannel, dutycycleB);
+
+    // Escribe el ángulo en el servo para que se mueva a la posición correspondiente
+    myservo.write(angle); 
+    
+    delay(300);
+}
+
+//Función de configuración del servo con pmw
+void configurarPWM(void) {
+    ledcSetup(pwmChannel, 50, resolution);  // Configura el canal PWM con frecuencia de 50 Hz y resolución de 16 bits
+    ledcAttachPin(pinPWM, pwmChannel);      // Asociar el pin del servo con el canal PWM configurado
+    myservo.attach(pinPWM);                 // Adjuntar el servo al pin PWM configurado
+
+    //Configurar el módulo PWM
+    ledcSetup(ledRChannel, 5000, resolution);
+    ledcSetup(ledGChannel, 1000, resolution);
+    ledcSetup(ledBChannel, 500, resolution);
+
+    //Selección de en que GPIO tendremos nuestra señal PWM
+    ledcAttachPin(pinLedR, ledRChannel);
+    ledcAttachPin(pinLedG, ledGChannel);
+    ledcAttachPin(pinLedB, ledBChannel);
+}
   
     
 
