@@ -1,9 +1,10 @@
+///////////////LIBRERÍAS////////////////
 #include <Arduino.h>
-#include <ESP32Servo.h>
 #include "driver/ledc.h"
 #include <stdint.h>
 #include <config.h>
 
+//////////////DEFINICIÓN DE VARIABLES////////////////////////////////
 //Variable float para registrar la temperatura
 volatile float tempC;
 
@@ -67,8 +68,6 @@ volatile int dutycycleR = 0;
 volatile int dutycycleG = 0;
 volatile int dutycycleB = 0;
 
-//Variable del servo
-Servo myservo;
 
 //////////////////////////FUNCIONES///////////////////////////////
 //Configurar la función de pmw
@@ -190,6 +189,7 @@ void showdigit(int digit) {
     case 9: digit9(); break; 
     default: break; 
   } 
+}
 
 //////////////////////SETUP///////////////////////////
 void setup() {
@@ -201,30 +201,26 @@ void setup() {
     while(! Serial);
     Serial.print("Connecting to Adafruit IO");
 
-    // connectarse a io.adafruit.com
+  // connectarse a io.adafruit.com
     io.connect();
 
-    // Empezar el programa hasta que se logre una conexión exitosa
+  // Empezar el programa hasta que se logre una conexión exitosa
     while(io.status() < AIO_CONNECTED) {
       Serial.print(".");
       delay(500);
     }
 
-    //Mostrar que ya está conectado
+  //Mostrar que ya está conectado
     Serial.println();
     Serial.println(io.statusText());
 
-    //PIn del sensor de temperatura
+  //PIn del sensor de temperatura
     pinMode(PIN_LM35, INPUT);
 
     configurarPWM();     // Configura el PWM para el servo y las leds
+    pinMode(pinButton, INPUT_PULLUP);// Configura el pin del botón 1 como entrada con resistencia pull-up interna
 
-    pinMode(pinButton, INPUT_PULLUP);  // Configura el pin del botón 1 como entrada con resistencia pull-up interna
-
-    //Mandar al servo a 0 grados
-    myservo.write(angle);
-
-    //Configuración de pines para el display
+  //Configuración de pines para el display
     pinMode(A, OUTPUT); 
     pinMode(B, OUTPUT); 
     pinMode(C, OUTPUT); 
@@ -235,9 +231,12 @@ void setup() {
 
     pinMode(GND1, OUTPUT); 
     pinMode(GND2, OUTPUT); 
-    pinMode(GND3, OUTPUT);    
+    pinMode(GND3, OUTPUT);
+
 }
 
+
+////////////////////////LOOP///////////////////////////
 void loop() { 
 
   ///////////////////Tomar la temperatura cuando se apache el botón////////////////////////////////////////////
@@ -260,7 +259,7 @@ void loop() {
 
     /////////////Temperatura ->Ángulo ///////////////////////
     //Si la temperatura es menor a 32 mandar el servo hasta el extremo frío y darle su máximo brillo a la led verde
-    if (tempC <= 32){
+    if (tempC <= 25){
       angle = 180;
       dutycycleR = 0;
       dutycycleG = 0;
@@ -268,16 +267,16 @@ void loop() {
     }
 
     //Si la temperatura es mayor a 40 mandar al servo al extremo caliente y darle su brillo máximo a la led roja
-    if (tempC >= 40) {
+    if (tempC >= 42) {
       angle = 0;
-      dutycycleR = 256;
+      dutycycleR = 400;
       dutycycleG = 0;
       dutycycleB = 0;
     }
 
     //Si la temperatura está entre 32 y 37 ir moviendo el ángulo gradualmente en el primer tercio de su movimiento, entre 180 y 121
-    if (tempC >= 32 && tempC < 37) {
-      angle = map(tempC, 32, 37, 180, 121);
+    if (tempC >= 25 && tempC < 37) {
+      angle = map(tempC, 25, 37, 180, 121);
       dutycycleR = 0;
       dutycycleG = 0;
     }
@@ -303,8 +302,8 @@ void loop() {
     }
 
     //Si la temperatura se pasa de 37.6 reducir el ángulo gradualmente desde 60 a 0.
-    if (tempC >= 37.6 && tempC <= 40) {
-      angle = map(tempC, 37.6, 40, 60, 0);
+    if (tempC >= 37.6 && tempC <= 42) {
+      angle = map(tempC, 37.6, 42, 60, 0);
       dutycycleG = 0;
       dutycycleB = 0;
     }
@@ -312,7 +311,7 @@ void loop() {
     ///////////////Ángulo -> Led////////////////////////////////////
     //Si el ángulo está entre 0 y 60, significa que la temperatura es mayor a 37.5 por lo que es necesario reducir la iluminación de la led roja a medida que aumenta el ángulo, ya que 0 grados es el extremo caliente.
     if (angle >= 0 && angle <= 60) {
-      dutycycleR = map(angle, 0, 60, 256, 0);
+      dutycycleR = map(angle, 0, 60, 400, 0);
     }
 
     //Si el ángulo está entre 61 y 90 aumentar gradualmente la iluminación de la led amarilla ya que en 90 grados es su punto medio exacto, entonces esta luz tiene que ser más intensa.
@@ -336,14 +335,20 @@ void loop() {
     ledcWrite(ledBChannel, dutycycleB);
 
     // Escribe el ángulo en el servo para que se mueva a la posición correspondiente
-    myservo.write(angle); 
+        //Definir la señal de pmw dependiendo del valor de ángulo que se tiene.
+    int pwmSignal = map(angle, 0, 180, 1500, 8000);
 
+    // Mandar la señal pmw al servo para moverlo al ángulo deseado
+    ledcWrite(pwmChannel, pwmSignal);
+    
     //Se manda el valor de temperatura al feed en adafruit para poder verlo en tiempo real
     tempCanal->save(tempC);
-    
+
+    //Pequeño delay de debounce, para que no se tomen multiples temperaturas cuando se presiona el botón
     delay(300);
-    }
-/////////////DISPLAY///////////////
+  }
+
+  /////////////DISPLAY///////////////
   //Número sin decimal del valor de temperatura
   int wholePart = int(tempC); 
   //Decimal del valor de temperatura
@@ -393,7 +398,6 @@ void loop() {
 void configurarPWM(void) {
     ledcSetup(pwmChannel, 50, resolution);  // Configura el canal PWM con frecuencia de 50 Hz y resolución de 16 bits
     ledcAttachPin(pinPWM, pwmChannel);      // Asociar el pin del servo con el canal PWM configurado
-    myservo.attach(pinPWM);                 // Adjuntar el servo al pin PWM configurado
 
     //Configurar el módulo PWM
     ledcSetup(ledRChannel, 5000, resolution);
@@ -405,7 +409,6 @@ void configurarPWM(void) {
     ledcAttachPin(pinLedG, ledGChannel);
     ledcAttachPin(pinLedB, ledBChannel);
 }
-  
     
 
 
