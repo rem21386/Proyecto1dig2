@@ -35,7 +35,7 @@ volatile int digit;
 //Resolución del ADC
 #define ADC_RESOLUTION 4096.0
 //Pin de señal del sensor
-#define PIN_LM35       34 // ESP32 pin GPIO36 (ADC0) connected to LM35
+#define PIN_LM35       34 // Pin conectado al sensor
 
 //Canales de pmw
 #define pwmChannel 0 
@@ -394,7 +394,7 @@ void loop() {
   delay(5);
 }
 
-//Función de configuración del servo con pmw
+//Función de configuración del servo y leds con pmw
 void configurarPWM(void) {
     ledcSetup(pwmChannel, 50, resolution);  // Configura el canal PWM con frecuencia de 50 Hz y resolución de 16 bits
     ledcAttachPin(pinPWM, pwmChannel);      // Asociar el pin del servo con el canal PWM configurado
@@ -409,6 +409,7 @@ void configurarPWM(void) {
     ledcAttachPin(pinLedG, ledGChannel);
     ledcAttachPin(pinLedB, ledBChannel);
 }
-    
+
+
 
 
